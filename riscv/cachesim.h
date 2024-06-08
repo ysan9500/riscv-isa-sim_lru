@@ -9,6 +9,12 @@
 #include <map>
 #include <cstdint>
 
+typedef struct LRUNode {
+  unsigned int isRight;
+  LRUNode *right;
+  LRUNode *left;
+}LRUNode;
+
 class lfsr_t
 {
  public:
@@ -49,6 +55,7 @@ class cache_sim_t
   size_t idx_shift;
 
   uint64_t* tags;
+  LRUNode** LRUTrees;
   
   uint64_t read_accesses;
   uint64_t read_misses;

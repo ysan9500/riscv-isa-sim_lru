@@ -6,6 +6,54 @@
 #include <iostream>
 #include <iomanip>
 
+LRUNode* newLRUNode(){
+  LRUNode *newNode = new LRUNode;
+  newNode->isRight = 0;
+  newNode->left = newNode->right = NULL;
+  return newNode;
+}
+
+LRUNode* makeLRUTree(int ways){
+  if(ways == 0) return NULL;
+  LRUNode *root = new LRUNode;
+  root->right = makeLRUTree(ways/2);
+  root->left = makeLRUTree(ways/2);
+  return root;
+}
+
+size_t getLRU(LRUNode *root, int ways){
+  LRUNode *curNode = root;
+  size_t index = 0;
+  for(size_t i = ways/2; i > 0; i /= 2){
+    if(curNode->isRight == 1) {
+      index += i;
+      curNode->isRight = 0;
+      curNode = curNode->right;
+    }
+    else {
+      curNode->isRight = 1;
+      curNode = curNode->left;
+    }
+  }
+  return index;
+}
+
+void updateLRUTree(LRUNode *root, int way, int ways){
+  LRUNode *curNode = root;
+  for(size_t i = ways/2; i > 0; i/=2){
+    if(way/i == 1) {
+      curNode->isRight = 0;
+      curNode = curNode->right;
+      way %= i;
+    }
+    else {
+      curNode->isRight = 1;
+      curNode = curNode->left;
+      way %= i;
+    }
+  }
+}
+
 cache_sim_t::cache_sim_t(size_t _sets, size_t _ways, size_t _linesz, const char* _name)
 : sets(_sets), ways(_ways), linesz(_linesz), name(_name), log(false)
 {
@@ -58,6 +106,11 @@ void cache_sim_t::init()
   writebacks = 0;
 
   miss_handler = NULL;
+
+  LRUTrees = new LRUNode*[sets];
+  for (size_t i = 0; i < sets; i++){
+    LRUTrees[i] = makeLRUTree(ways);
+  }
 }
 
 cache_sim_t::cache_sim_t(const cache_sim_t& rhs)
@@ -106,16 +159,17 @@ uint64_t* cache_sim_t::check_tag(uint64_t addr)
   size_t tag = (addr >> idx_shift) | VALID;
 
   for (size_t i = 0; i < ways; i++)
-    if (tag == (tags[idx*ways + i] & ~DIRTY))
+    if (tag == (tags[idx*ways + i] & ~DIRTY)){
+      updateLRUTree(LRUTrees[idx], i, ways);
       return &tags[idx*ways + i];
-
+    }
   return NULL;
 }
 
 uint64_t cache_sim_t::victimize(uint64_t addr)
 {
   size_t idx = (addr >> idx_shift) & (sets-1);
-  size_t way = lfsr.next() % ways;
+  size_t way = getLRU(LRUTrees[idx], ways);
   uint64_t victim = tags[idx*ways + way];
   tags[idx*ways + way] = (addr >> idx_shift) | VALID;
   return victim;
